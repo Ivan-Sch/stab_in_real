@@ -1,65 +1,72 @@
-# Время выполнения кода: 396.18249559402466 секунд
-# Время выполнения кода: 313.74548625946045 секунд
-
-
 # Входное видео Формата "TS" 3 минуты 39 секунд. Это 219 секунд
-# Время выполнения кода: 460.8513550758362 секунд
-# Время выполнения кода: 7.309110637505849 минут. Это 438.54663825035095 секунд
-# Время выполнения кода: 7.028223276138306 минут. Это 421.69339656829834 секунд    stabilization_thresh=0.1
-# Итого: 1 секунда = 2 секундам
+# Время выполнения кода: 4.065817399819692 минут. Это 243.94904398918152 секунд
 
-# Входное видео Формата "mp4" 3 минуты 39 секунд. Это 219 секунд
-# Время выполнения кода: 8.72259046236674 минут. Это 523.3554277420044 секунд
-# Время выполнения кода: 8.646813253561655 минут. Это 518.8087952136993 секунд
-
-
-
-#
-# Время выполнения кода: 5.016121554374695 минут. Это 300.9672932624817 секунд
 import time
 
 start_time = time.time()
 
-# import required libraries
 from vidgear.gears import VideoGear
 import cv2
+import queue
+import threading
+
+
+def video_capture_thread(source, queue, stop_event):
+    stream = VideoGear(source=source, stabilize=True).start()
+    try:
+        while not stop_event.is_set():
+            frame = stream.read()
+            queue.put(frame)
+    finally:
+        stream.stop()
+
 
 def main():
-    # open any valid video stream with stabilization enabled(stabilize = True)
-    stream_stab = VideoGear(source="orig.ts", stabilize=True).start()
+    frame_queue = queue.Queue(maxsize=5)  # Установите максимальный размер буфера
+    stop_event = threading.Event()
+
+    # Запустите поток захвата видео
+    capture_thread = threading.Thread(target=video_capture_thread, args=("orig.ts", frame_queue, stop_event))
+    capture_thread.start()
 
     try:
-        # loop over
         while True:
-            # read stabilized frames
-            frame_stab = stream_stab.read()
+            # Получите кадр из буфера
+            frame_stab = frame_queue.get()
 
-            # check for stabilized frame if None-type
             if frame_stab is None:
+                stop_event.set()
                 break
-
             # {do something with the frame here}
-            # For example, you can perform some operations on frame_stab here
+            # Например, выполните некоторые операции с frame_stab здесь
 
-            # Show output window
+            # Показать окно вывода
             cv2.imshow("Stabilized Output", frame_stab)
 
-            # check for 'q' key if pressed
+            # Проверьте, была ли нажата клавиша 'q' или 'esc'
             key = cv2.waitKey(1) & 0xFF
-            if key == 27:
+            if key == 27 or key == ord('q'):
+                stop_event.set()
                 break
 
     finally:
-        # close output window
+        # Завершите поток захвата видео
+        capture_thread.join()
+        # Дайте небольшую задержку перед закрытием окна вывода
+        cv2.waitKey(1)
+        # Закройте окно вывода
         cv2.destroyAllWindows()
 
-        # safely close streams
-        stream_stab.stop()
 
 if __name__ == "__main__":
     main()
 
-
-end_time = time.time()
 # Вычисляем время выполнения
-print(f"Время выполнения кода: {(end_time - start_time) / 60} минут. Это {end_time - start_time} секунд")
+end_time = time.time()
+tm = f"Время выполнения кода: {(end_time - start_time) / 60} минут. Это {end_time - start_time} секунд"
+print(tm)
+# Открываем файл для записи (если файл не существует, он будет создан)
+with open('Время работы кода.txt', 'w') as file:
+    # Записываем текст в файл
+    file.write(tm)
+# Файл автоматически закрывается благодаря использованию ключевого слова 'with'
